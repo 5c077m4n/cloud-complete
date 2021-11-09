@@ -3,9 +3,10 @@
 	"version": "0.0.0",
 	"author": "Roee Shapira",
 	"license": "MIT",
+	"private": true,
 	"packageManager": "yarn@3.1.0",
 	"scripts": {
-		"postinstall": "git config core.hooksPath .githooks"
+		"git-hook": "test -d .githooks && chmod 755 .githooks/* && git config core.hooksPath .githooks"
 	},
 	"workspaces": [
 		"services/*"

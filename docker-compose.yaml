@@ -20,7 +20,9 @@ services:
     restart: unless-stopped
 
   data:
-    build: ./services/data
+    build:
+      context: services/data
+      dockerfile: ../../docker/rust.Dockerfile
     container_name: data
     environment:
       RABBITMQ_HOST: rabbitmq
@@ -30,7 +32,11 @@ services:
     restart: unless-stopped
 
   back:
-    build: ./services/back
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      args:
+        BUILD_CONTEXT: back
     container_name: back
     environment:
       RABBITMQ_HOST: rabbitmq
