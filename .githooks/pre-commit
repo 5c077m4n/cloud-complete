@@ -1,7 +1,7 @@
 #!/bin/sh
 
-yarn eslint . --fix
-yarn prettier . --write
-cargo fmt --all
+yarn workspaces foreach run lint
+yarn workspaces foreach run format
+(cd services/data && cargo fmt --all)
 
 git add --update
