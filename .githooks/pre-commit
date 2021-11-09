@@ -2,6 +2,5 @@
 
 yarn workspaces foreach run lint
 yarn workspaces foreach run format
-(cd services/data && cargo fmt --all)
 
 git add --update
