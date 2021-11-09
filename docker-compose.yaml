@@ -28,3 +28,12 @@ services:
       - rabbitmq
       - mongodb
     restart: unless-stopped
+
+  back:
+    build: ./services/back
+    container_name: back
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - data
+    restart: unless-stopped

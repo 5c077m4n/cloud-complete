@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientProxyFactory } from '@nestjs/microservices';
 
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { rabbitConfig } from './config';
 import { TicketService } from './services/ticket/ticket.service';
 import { OrderService } from './services/order/order.service';
@@ -20,7 +19,6 @@ import { OrderService } from './services/order/order.service';
 				return ClientProxyFactory.create(rabbitData);
 			},
 		},
-		AppService,
 		TicketService,
 		OrderService,
 	],
