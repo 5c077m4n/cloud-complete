@@ -5,6 +5,7 @@ ENV SKIP_POSTINSTALL=1
 ARG BUILD_CONTEXT=back
 
 RUN apk update && apk add --no-cache dumb-init
+RUN corepack enable yarn
 
 WORKDIR /usr/src/app
 
