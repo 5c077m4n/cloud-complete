@@ -1,0 +1,7 @@
+#!/bin/sh
+
+yarn eslint . --fix
+yarn prettier . --write
+cargo fmt --all
+
+git add --update

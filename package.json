@@ -1,0 +1,13 @@
+{
+	"name": "cloud-complete",
+	"version": "0.0.0",
+	"author": "Roee Shapira",
+	"license": "MIT",
+	"packageManager": "yarn@3.1.0",
+	"scripts": {
+		"postinstall": "git config core.hooksPath .githooks"
+	},
+	"workspaces": [
+		"services/*"
+	]
+}

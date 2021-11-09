@@ -1,0 +1,9 @@
+{
+	"name": "data",
+	"scripts": {
+		"start": "RUST_LOG=debug cargo run",
+		"start:dev": "RUST_LOG=debug cargo watch --exec run",
+		"install": "cargo install --path .",
+		"build": "cargo build"
+	}
+}
