@@ -4,6 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct Order {
 	_id: Option<String>,
 	title: String,
-	ticket_ref: String,
+	ticket_ref: Vec<String>,
 	date: String,
 }
