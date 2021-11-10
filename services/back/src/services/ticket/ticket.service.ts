@@ -11,10 +11,10 @@ export class TicketService {
 
 	getOne(id: string): Observable<Ticket> {
 		this.logger.debug('Fetching one ticket #' + id);
-		return this.dataService.send('get_order', id);
+		return this.dataService.send('get_ticket', id);
 	}
 	getBatch(idList: string[] = []): Observable<Ticket[]> {
 		this.logger.debug('Fetching tickets #' + idList.join(','));
-		return this.dataService.send('get_orders', idList);
+		return this.dataService.send('get_tickets', idList);
 	}
 }

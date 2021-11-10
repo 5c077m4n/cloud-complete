@@ -4,20 +4,19 @@ use std::{env, str};
 
 use futures::stream::StreamExt;
 use lapin::{
-	options::{BasicAckOptions, BasicConsumeOptions, QueueDeclareOptions},
+	options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
 	types::FieldTable,
-	Connection, ConnectionProperties,
+	BasicProperties, Connection, ConnectionProperties,
 };
 use log::{debug, error, info};
 use mongodb::{options::ClientOptions, Client};
 
-use lib::{ErrorType, Order, Ticket};
-use serde_json::Value;
+use lib::{ErrorType, MQMessage, Order, Ticket};
 
 #[tokio::main]
 async fn main() -> Result<(), ErrorType> {
 	env_logger::init();
-	info!("Starting up...");
+	debug!("Starting up...");
 
 	let mongodb_url = {
 		let mongodb_host = env::var("MONGODB_HOST").unwrap_or_else(|_| "0.0.0.0".into());
@@ -30,7 +29,7 @@ async fn main() -> Result<(), ErrorType> {
 	let mut client_options = ClientOptions::parse(&mongodb_url).await?;
 	client_options.app_name = Some("Cloud Complete Data".into());
 	let client = Client::with_options(client_options)?;
-	info!(
+	debug!(
 		"Successfully connected to the MongoDB instance @ {}",
 		&mongodb_url
 	);
@@ -48,7 +47,7 @@ async fn main() -> Result<(), ErrorType> {
 	};
 
 	let conn = Connection::connect(&rabbitmq_url, ConnectionProperties::default()).await?;
-	info!(
+	debug!(
 		"Successfully connected to the RabbitMQ instance @ {}",
 		&rabbitmq_url
 	);
@@ -71,18 +70,37 @@ async fn main() -> Result<(), ErrorType> {
 		.await?;
 
 	while let Some(delivery) = consumer.next().await {
-		let (_channel, delivery) = delivery?;
+		let (channel, delivery) = delivery?;
 		delivery.ack(BasicAckOptions::default()).await?;
 
 		let message = str::from_utf8(&delivery.data)?;
-		let message: Value = match serde_json::from_str(message) {
+		let message: MQMessage = match serde_json::from_str(&message) {
 			Ok(msg) => msg,
 			Err(e) => {
-				error!("{}", e);
+				error!("{} - {}", &e, &message);
 				continue;
 			}
 		};
-		debug!("{}", message);
+		match message.pattern {
+			"get_tickets" | "get_orders" => {
+				let confirm = channel
+					.basic_publish(
+						"",
+						"data_queue",
+						BasicPublishOptions::default(),
+						b"{}".to_vec(),
+						BasicProperties::default(),
+					)
+					.await?
+					.await?;
+
+				if let Some(body) = confirm.take_message() {
+					let data = str::from_utf8(&body.data)?;
+					info!("{}", data);
+				}
+			}
+			other => error!(r#"The pattern "{}" is not supported"#, other),
+		};
 	}
 
 	Ok(())

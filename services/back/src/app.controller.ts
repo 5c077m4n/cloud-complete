@@ -8,7 +8,9 @@ export class AppController {
 	private readonly logger = new Logger(AppController.name);
 
 	constructor(private readonly orderService: OrderService, private readonly ticketService: TicketService) {
-		this.orderService.getBatch().subscribe();
-		this.ticketService.getBatch().subscribe();
+		setInterval(() => {
+			this.orderService.getBatch().subscribe(this.logger.log.bind(this));
+			this.ticketService.getBatch().subscribe(this.logger.log.bind(this));
+		}, 10_000);
 	}
 }
