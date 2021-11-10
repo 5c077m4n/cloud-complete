@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Order {
-	_id: Option<String>,
-	title: String,
-	ticket_ref: Vec<String>,
-	date: String,
+	pub _id: Option<String>,
+	pub title: String,
+	pub ticket_ref: Vec<String>,
+	pub date: String,
 }

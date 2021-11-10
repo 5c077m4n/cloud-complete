@@ -1,15 +1,17 @@
+#![forbid(unsafe_code)]
+
 mod lib;
 
 use std::{env, str};
 
-use futures::stream::StreamExt;
+use futures::{stream::StreamExt, TryStreamExt};
 use lapin::{
 	options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
 	types::FieldTable,
 	BasicProperties, Connection, ConnectionProperties,
 };
-use log::{debug, error, info};
-use mongodb::{options::ClientOptions, Client};
+use log::{debug, error};
+use mongodb::{bson::doc, options::ClientOptions, Client};
 
 use lib::{ErrorType, MQMessage, Order, Ticket};
 
@@ -27,14 +29,14 @@ async fn main() -> Result<(), ErrorType> {
 	};
 
 	let mut client_options = ClientOptions::parse(&mongodb_url).await?;
-	client_options.app_name = Some("Cloud Complete Data".into());
+	client_options.app_name = Some("cloud_complete_data".into());
 	let client = Client::with_options(client_options)?;
 	debug!(
 		"Successfully connected to the MongoDB instance @ {}",
 		&mongodb_url
 	);
 
-	let db = client.database("Cloud Complete Data");
+	let db = client.database("cloud_complete_data");
 	let _ticket_collection = db.collection::<Ticket>("ticket");
 	let _order_collection = db.collection::<Order>("order");
 
@@ -46,21 +48,23 @@ async fn main() -> Result<(), ErrorType> {
 		format!("amqp://{}:{}/%2f", &rabbitmq_host, &rabbitmq_port)
 	};
 
-	let conn = Connection::connect(&rabbitmq_url, ConnectionProperties::default()).await?;
+	let connection = Connection::connect(&rabbitmq_url, ConnectionProperties::default()).await?;
 	debug!(
 		"Successfully connected to the RabbitMQ instance @ {}",
 		&rabbitmq_url
 	);
-	let channel = conn.create_channel().await?;
+	let rx = connection.create_channel().await?;
+	let tx = connection.create_channel().await?;
+	debug!("{:?}", connection.status().state());
 
-	let _queue = channel
+	let _tx_queue = tx
 		.queue_declare(
 			"data_queue",
 			QueueDeclareOptions::default(),
 			FieldTable::default(),
 		)
 		.await?;
-	let mut consumer = channel
+	let mut consumer = rx
 		.basic_consume(
 			"data_queue",
 			"data_consumer",
@@ -69,37 +73,51 @@ async fn main() -> Result<(), ErrorType> {
 		)
 		.await?;
 
-	while let Some(delivery) = consumer.next().await {
-		let (channel, delivery) = delivery?;
+	while let Some(Ok((_rx_channel, delivery))) = consumer.next().await {
 		delivery.ack(BasicAckOptions::default()).await?;
 
-		let message = str::from_utf8(&delivery.data)?;
-		let message: MQMessage = match serde_json::from_str(&message) {
-			Ok(msg) => msg,
+		match serde_json::from_slice::<MQMessage<&str>>(&delivery.data) {
+			Ok(message) => {
+				match message.pattern {
+					"get_tickets" => {
+						match serde_json::from_str::<Vec<&str>>(&message.data) {
+							Ok(id_list) => {
+								let filter = if id_list.is_empty() {
+									None
+								} else {
+									Some(doc! { "_id": doc! { "$in": id_list } })
+								};
+
+								let mut cursor = _ticket_collection.find(filter, None).await?;
+								let mut tickets: Vec<Ticket> = Vec::new();
+								while let Some(ticket) = cursor.try_next().await? {
+									tickets.push(ticket);
+								}
+
+								let _confirm = tx
+									.basic_publish(
+										"",
+										"data_queue",
+										BasicPublishOptions::default(),
+										serde_json::to_vec(&tickets)?,
+										BasicProperties::default(),
+									)
+									.await?
+									.await?;
+							}
+							Err(e) => {
+								error!("{} - {}", &e, message.data);
+								continue;
+							}
+						};
+					}
+					other => error!(r#"The pattern "{}" is not supported"#, other),
+				};
+			}
 			Err(e) => {
-				error!("{} - {}", &e, &message);
+				error!("{} - {:?}", &e, str::from_utf8(&delivery.data));
 				continue;
 			}
-		};
-		match message.pattern {
-			"get_tickets" | "get_orders" => {
-				let confirm = channel
-					.basic_publish(
-						"",
-						"data_queue",
-						BasicPublishOptions::default(),
-						b"{}".to_vec(),
-						BasicProperties::default(),
-					)
-					.await?
-					.await?;
-
-				if let Some(body) = confirm.take_message() {
-					let data = str::from_utf8(&body.data)?;
-					info!("{}", data);
-				}
-			}
-			other => error!(r#"The pattern "{}" is not supported"#, other),
 		};
 	}
 

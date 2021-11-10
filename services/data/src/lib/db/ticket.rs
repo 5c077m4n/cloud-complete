@@ -28,9 +28,9 @@ impl TicketStatus {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Ticket {
-	_id: Option<String>,
-	title: String,
-	price: String,
-	date: String,
-	status: TicketStatus,
+	pub _id: Option<String>,
+	pub title: String,
+	pub price: String,
+	pub date: String,
+	pub status: TicketStatus,
 }

@@ -5,6 +5,7 @@
 		"start:dev": "RUST_LOG=debug cargo watch --exec run",
 		"install": "cargo install --path .",
 		"build": "cargo build",
+		"lint": "cargo clippy --all-targets --all-features --fix",
 		"format": "cargo fmt"
 	}
 }
