@@ -21,11 +21,11 @@ async fn main() -> Result<(), ErrorType> {
 	debug!("Starting up...");
 
 	let mongodb_url = {
-		let mongodb_host = env::var("MONGODB_HOST").unwrap_or_else(|_| "0.0.0.0".into());
-		let mongodb_port: usize = env::var("MONGODB_PORT")
+		let host = env::var("MONGODB_HOST").unwrap_or_else(|_| "0.0.0.0".into());
+		let port: usize = env::var("MONGODB_PORT")
 			.unwrap_or_else(|_| "27017".into())
 			.parse()?;
-		format!("mongodb://{}:{}", &mongodb_host, &mongodb_port)
+		format!("mongodb://{}:{}", &host, &port)
 	};
 
 	let mut client_options = ClientOptions::parse(&mongodb_url).await?;
@@ -41,11 +41,13 @@ async fn main() -> Result<(), ErrorType> {
 	let order_collection = db.collection::<Order>("order");
 
 	let rabbitmq_url = {
-		let rabbitmq_host = env::var("RABBITMQ_HOST").unwrap_or_else(|_| "0.0.0.0".into());
-		let rabbitmq_port: usize = env::var("RABBITMQ_PORT")
+		let host = env::var("RABBITMQ_HOST").unwrap_or_else(|_| "0.0.0.0".into());
+		let port: usize = env::var("RABBITMQ_PORT")
 			.unwrap_or_else(|_| "5672".into())
 			.parse()?;
-		format!("amqp://{}:{}/%2f", &rabbitmq_host, &rabbitmq_port)
+		let username = env::var("RABBITMQ_USERNAME").unwrap_or_else(|_| "guest".into());
+		let password = env::var("RABBITMQ_PASSWORD").unwrap_or_else(|_| "guest".into());
+		format!("amqp://{}:{}@{}:{}/%2f", &username, &password, &host, &port)
 	};
 
 	let connection = Connection::connect(&rabbitmq_url, ConnectionProperties::default()).await?;
