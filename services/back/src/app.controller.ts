@@ -9,8 +9,8 @@ export class AppController {
 
 	constructor(private readonly orderService: OrderService, private readonly ticketService: TicketService) {
 		setInterval(() => {
-			this.orderService.getBatch().subscribe(this.logger.log.bind(this));
-			this.ticketService.getBatch().subscribe(this.logger.log.bind(this));
+			this.ticketService.get(['324']).subscribe(this.logger.log.bind(this));
+			this.ticketService.get(['324', '345', '876']).subscribe(this.logger.log.bind(this));
 		}, 10_000);
 	}
 }

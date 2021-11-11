@@ -37,8 +37,8 @@ async fn main() -> Result<(), ErrorType> {
 	);
 
 	let db = client.database("cloud_complete_data");
-	let _ticket_collection = db.collection::<Ticket>("ticket");
-	let _order_collection = db.collection::<Order>("order");
+	let ticket_collection = db.collection::<Ticket>("ticket");
+	let order_collection = db.collection::<Order>("order");
 
 	let rabbitmq_url = {
 		let rabbitmq_host = env::var("RABBITMQ_HOST").unwrap_or_else(|_| "0.0.0.0".into());
@@ -76,42 +76,56 @@ async fn main() -> Result<(), ErrorType> {
 	while let Some(Ok((_rx_channel, delivery))) = consumer.next().await {
 		delivery.ack(BasicAckOptions::default()).await?;
 
-		match serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
-			Ok(message) => {
-				match message.pattern {
-					"get_tickets" => {
-						let id_list = message.data;
-						let filter = if id_list.is_empty() {
-							None
-						} else {
-							Some(doc! { "_id": doc! { "$in": id_list } })
-						};
+		if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
+			let id_list = &message.data;
+			let filter = if id_list.is_empty() {
+				None
+			} else if id_list.len() == 1 {
+				Some(doc! { "_id": id_list[0] })
+			} else {
+				Some(doc! { "_id": { "$in": id_list } })
+			};
 
-						let mut cursor = _ticket_collection.find(filter, None).await?;
-						let mut tickets: Vec<Ticket> = Vec::new();
-						while let Some(ticket) = cursor.try_next().await? {
-							tickets.push(ticket);
-						}
+			match message.pattern {
+				"get_orders" => {
+					debug!("Getting orders with filter: {:?}", &filter);
 
-						let _confirm = tx
-							.basic_publish(
-								"",
-								"data_queue",
-								BasicPublishOptions::default(),
-								serde_json::to_vec(&tickets)?,
-								BasicProperties::default(),
-							)
-							.await?
-							.await?;
-					}
-					other => error!(r#"The pattern "{}" is not supported"#, other),
-				};
-			}
-			Err(e) => {
-				error!("{} - {:?}", &e, str::from_utf8(&delivery.data));
-				continue;
-			}
-		};
+					let cursor = order_collection.find(filter, None).await?;
+					let orders: Vec<Order> = cursor.try_collect().await?;
+					debug!("Successfully fetched orders: {:?}", &orders);
+
+					let _confirm = tx
+						.basic_publish(
+							"",
+							"data_queue",
+							BasicPublishOptions::default(),
+							serde_json::to_vec(&orders)?,
+							BasicProperties::default(),
+						)
+						.await?
+						.await?;
+				}
+				"get_tickets" => {
+					debug!("Getting tickets with filter: {:?}", &filter);
+
+					let cursor = ticket_collection.find(filter, None).await?;
+					let tickets: Vec<Ticket> = cursor.try_collect().await?;
+					debug!("Successfully fetched tickets: {:?}", &tickets);
+
+					let _confirm = tx
+						.basic_publish(
+							"",
+							"data_queue",
+							BasicPublishOptions::default(),
+							serde_json::to_vec(&tickets)?,
+							BasicProperties::default(),
+						)
+						.await?
+						.await?;
+				}
+				other => error!(r#"The pattern "{}" is not supported"#, other),
+			};
+		}
 	}
 
 	Ok(())
