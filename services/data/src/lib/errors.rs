@@ -8,6 +8,7 @@ pub enum ErrorType {
 	ParseInt(std::num::ParseIntError),
 	ParseStr(std::str::Utf8Error),
 	ParseJson(serde_json::Error),
+	Join(tokio::task::JoinError),
 }
 
 impl error::Error for ErrorType {}
@@ -42,6 +43,11 @@ impl From<serde_json::Error> for ErrorType {
 		Self::ParseJson(parse_json_error)
 	}
 }
+impl From<tokio::task::JoinError> for ErrorType {
+	fn from(join_error: tokio::task::JoinError) -> Self {
+		Self::Join(join_error)
+	}
+}
 
 impl fmt::Display for ErrorType {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -52,6 +58,7 @@ impl fmt::Display for ErrorType {
 			Self::ParseInt(parse_int_error) => write!(f, "{}", parse_int_error),
 			Self::ParseStr(parse_str_error) => write!(f, "{}", parse_str_error),
 			Self::ParseJson(parse_json_error) => write!(f, "{}", parse_json_error),
+			Self::Join(join_error) => write!(f, "{}", join_error),
 		}
 	}
 }

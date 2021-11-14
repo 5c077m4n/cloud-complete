@@ -1,26 +1,14 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { ClientProxyFactory } from '@nestjs/microservices';
+import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
-import { rabbitConfig } from './config';
-import { TicketService } from './services/ticket/ticket.service';
-import { OrderService } from './services/order/order.service';
+import { rmqConfig } from './config';
+import { OrderModule } from './services/order/order.module';
+import { TicketModule } from './services/ticket/ticket.module';
 
 @Module({
-	imports: [ConfigModule.forRoot({ isGlobal: true, load: [rabbitConfig] })],
+	imports: [ConfigModule.forRoot({ isGlobal: true, load: [rmqConfig] }), TicketModule, OrderModule],
 	controllers: [AppController],
-	providers: [
-		{
-			provide: 'DATA_SERVICE',
-			inject: [ConfigService],
-			useFactory: (configService: ConfigService) => {
-				const rabbitData = configService.get('rabbitmqData');
-				return ClientProxyFactory.create(rabbitData);
-			},
-		},
-		TicketService,
-		OrderService,
-	],
+	providers: [],
 })
 export class AppModule {}

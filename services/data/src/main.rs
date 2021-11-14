@@ -2,18 +2,12 @@
 
 mod lib;
 
-use std::{env, str};
+use std::env;
 
-use futures::{stream::StreamExt, TryStreamExt};
-use lapin::{
-	options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
-	types::FieldTable,
-	BasicProperties, Connection, ConnectionProperties,
-};
-use log::{debug, error};
-use mongodb::{bson::doc, options::ClientOptions, Client};
+use log::debug;
+use mongodb::options::ClientOptions;
 
-use lib::{ErrorType, MQMessage, Order, Ticket};
+use lib::{handle_order_requests, handle_ticket_requests, ErrorType};
 
 #[tokio::main]
 async fn main() -> Result<(), ErrorType> {
@@ -30,15 +24,12 @@ async fn main() -> Result<(), ErrorType> {
 
 	let mut client_options = ClientOptions::parse(&mongodb_url).await?;
 	client_options.app_name = Some("cloud_complete_data".into());
-	let client = Client::with_options(client_options)?;
+	let mongodb_client = mongodb::Client::with_options(client_options)?;
+	let db = mongodb_client.database("cloud_complete_data");
 	debug!(
 		"Successfully connected to the MongoDB instance @ {}",
 		&mongodb_url
 	);
-
-	let db = client.database("cloud_complete_data");
-	let ticket_collection = db.collection::<Ticket>("ticket");
-	let order_collection = db.collection::<Order>("order");
 
 	let rabbitmq_url = {
 		let host = env::var("RABBITMQ_HOST").unwrap_or_else(|_| "0.0.0.0".into());
@@ -50,85 +41,18 @@ async fn main() -> Result<(), ErrorType> {
 		format!("amqp://{}:{}@{}:{}/%2f", &username, &password, &host, &port)
 	};
 
-	let connection = Connection::connect(&rabbitmq_url, ConnectionProperties::default()).await?;
+	let rmq_conn =
+		lapin::Connection::connect(&rabbitmq_url, lapin::ConnectionProperties::default()).await?;
 	debug!(
 		"Successfully connected to the RabbitMQ instance @ {}",
 		&rabbitmq_url
 	);
-	let rx = connection.create_channel().await?;
-	let tx = connection.create_channel().await?;
-	debug!("{:?}", connection.status().state());
 
-	let _tx_queue = tx
-		.queue_declare(
-			"data_queue",
-			QueueDeclareOptions::default(),
-			FieldTable::default(),
-		)
-		.await?;
-	let mut consumer = rx
-		.basic_consume(
-			"data_queue",
-			"data_consumer",
-			BasicConsumeOptions::default(),
-			FieldTable::default(),
-		)
-		.await?;
+	let (_, _) = tokio::join!(
+		handle_ticket_requests(&rmq_conn, &db),
+		handle_order_requests(&rmq_conn, &db)
+	);
 
-	while let Some(Ok((_rx_channel, delivery))) = consumer.next().await {
-		delivery.ack(BasicAckOptions::default()).await?;
-
-		if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
-			let id_list = &message.data;
-			let filter = if id_list.is_empty() {
-				None
-			} else if id_list.len() == 1 {
-				Some(doc! { "_id": id_list[0] })
-			} else {
-				Some(doc! { "_id": { "$in": id_list } })
-			};
-
-			match message.pattern {
-				"get_orders" => {
-					debug!("Getting orders with filter: {:?}", &filter);
-
-					let cursor = order_collection.find(filter, None).await?;
-					let orders: Vec<Order> = cursor.try_collect().await?;
-					debug!("Successfully fetched orders: {:?}", &orders);
-
-					let _confirm = tx
-						.basic_publish(
-							"",
-							"data_queue",
-							BasicPublishOptions::default(),
-							serde_json::to_vec(&orders)?,
-							BasicProperties::default(),
-						)
-						.await?
-						.await?;
-				}
-				"get_tickets" => {
-					debug!("Getting tickets with filter: {:?}", &filter);
-
-					let cursor = ticket_collection.find(filter, None).await?;
-					let tickets: Vec<Ticket> = cursor.try_collect().await?;
-					debug!("Successfully fetched tickets: {:?}", &tickets);
-
-					let _confirm = tx
-						.basic_publish(
-							"",
-							"data_queue",
-							BasicPublishOptions::default(),
-							serde_json::to_vec(&tickets)?,
-							BasicProperties::default(),
-						)
-						.await?
-						.await?;
-				}
-				other => error!(r#"The pattern "{}" is not supported"#, other),
-			};
-		}
-	}
-
+	debug!("Bye!");
 	Ok(())
 }

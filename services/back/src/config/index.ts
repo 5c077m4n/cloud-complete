@@ -1,16 +1,37 @@
-import { Transport } from '@nestjs/microservices';
+import { Transport, RmqOptions } from '@nestjs/microservices';
 
-export function rabbitConfig() {
-	const { RABBITMQ_HOST = '0.0.0.0', RABBITMQ_PORT = 5672 } = process.env;
+export enum RmqQueues {
+	TICKET_REQUEST = 'ticket_request_queue',
+	TICKET_RESPONSE = 'ticket_response_queue',
+	ORDER_REQUEST = 'order_request_queue',
+	ORDER_RESPONSE = 'order_response_queue',
+}
+
+export function rmqConfig(): Record<'ticketRequestQueue' | 'orderRequestQueue', RmqOptions> {
+	const {
+		RABBITMQ_USERNAME = 'guest',
+		RABBITMQ_PASSWORD = 'guest',
+		RABBITMQ_HOST = '0.0.0.0',
+		RABBITMQ_PORT = 5672,
+	} = process.env;
 
 	return {
-		rabbitmqData: {
-			name: 'DATA_SERVICE',
+		ticketRequestQueue: {
 			transport: Transport.RMQ,
 			options: {
-				urls: [`amqp://${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
-				queue: 'data_queue',
-				queueOptions: { durable: false },
+				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
+				queue: RmqQueues.TICKET_REQUEST,
+				queueOptions: { durable: false, noAck: true },
+				replyQueue: RmqQueues.TICKET_RESPONSE,
+			},
+		},
+		orderRequestQueue: {
+			transport: Transport.RMQ,
+			options: {
+				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
+				queue: RmqQueues.ORDER_REQUEST,
+				queueOptions: { durable: false, noAck: true },
+				replyQueue: RmqQueues.ORDER_RESPONSE,
 			},
 		},
 	};
