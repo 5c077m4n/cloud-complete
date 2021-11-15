@@ -10,7 +10,6 @@ use mongodb::bson::doc;
 use crate::lib::{ErrorType, MQMessage, Order};
 
 const ORDER_REQUEST_QUEUE: &str = "order_request_queue";
-const ORDER_RESPONSE_QUEUE: &str = "order_response_queue";
 
 pub async fn handle_order_requests(
 	rmq_conn: &lapin::Connection,
@@ -22,20 +21,12 @@ pub async fn handle_order_requests(
 	let tx = rmq_conn.create_channel().await?;
 	debug!("{:?}", rmq_conn.status().state());
 
-	let _ = rx
-		.queue_declare(
-			ORDER_REQUEST_QUEUE,
-			QueueDeclareOptions::default(),
-			FieldTable::default(),
-		)
-		.await?;
-	let _ = tx
-		.queue_declare(
-			ORDER_RESPONSE_QUEUE,
-			QueueDeclareOptions::default(),
-			FieldTable::default(),
-		)
-		.await?;
+	rx.queue_declare(
+		ORDER_REQUEST_QUEUE,
+		QueueDeclareOptions::default(),
+		FieldTable::default(),
+	)
+	.await?;
 	let mut order_consumer = rx
 		.basic_consume(
 			ORDER_REQUEST_QUEUE,
@@ -50,6 +41,12 @@ pub async fn handle_order_requests(
 
 		if let Some(reply_to) = delivery.properties.reply_to() {
 			let reply_to = reply_to.as_str();
+			tx.queue_declare(
+				reply_to,
+				QueueDeclareOptions::default(),
+				FieldTable::default(),
+			)
+			.await?;
 
 			if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
 				let id_list = &message.data;
