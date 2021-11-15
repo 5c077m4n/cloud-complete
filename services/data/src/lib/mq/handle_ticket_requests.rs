@@ -18,25 +18,25 @@ pub async fn handle_ticket_requests(
 ) -> Result<(), ErrorType> {
 	let ticket_collection = db_conn.collection::<Ticket>("ticket");
 
-	let ticket_rx = rmq_conn.create_channel().await?;
-	let ticket_tx = rmq_conn.create_channel().await?;
+	let rx = rmq_conn.create_channel().await?;
+	let tx = rmq_conn.create_channel().await?;
 	debug!("{:?}", rmq_conn.status().state());
 
-	let _ = ticket_rx
+	let _ = rx
 		.queue_declare(
 			TICKET_REQUEST_QUEUE,
 			QueueDeclareOptions::default(),
 			FieldTable::default(),
 		)
 		.await?;
-	let _ = ticket_tx
+	let _ = tx
 		.queue_declare(
 			TICKET_RESPONSE_QUEUE,
 			QueueDeclareOptions::default(),
 			FieldTable::default(),
 		)
 		.await?;
-	let mut ticket_consumer = ticket_rx
+	let mut ticket_consumer = rx
 		.basic_consume(
 			TICKET_REQUEST_QUEUE,
 			"ticket_request_consumer",
@@ -48,43 +48,52 @@ pub async fn handle_ticket_requests(
 	while let Some(Ok((_rx_channel, delivery))) = ticket_consumer.next().await {
 		delivery.ack(BasicAckOptions::default()).await?;
 
-		if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
-			let id_list = &message.data;
-			let filter = if id_list.is_empty() {
-				None
-			} else if id_list.len() == 1 {
-				Some(doc! { "_id": id_list[0] })
-			} else {
-				Some(doc! { "_id": { "$in": id_list } })
-			};
+		if let Some(reply_to) = delivery.properties.reply_to() {
+			let reply_to = reply_to.as_str();
 
-			match message.pattern {
-				"get_tickets" => {
-					debug!("Getting tickets with filter: {:?}", &filter);
+			if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
+				let id_list = &message.data;
+				let filter = if id_list.is_empty() {
+					None
+				} else if id_list.len() == 1 {
+					Some(doc! { "_id": id_list[0] })
+				} else {
+					Some(doc! { "_id": { "$in": id_list } })
+				};
 
-					let cursor = ticket_collection.find(filter, None).await?;
-					let tickets: Vec<Ticket> = cursor.try_collect().await?;
-					debug!("Successfully fetched tickets: {:?}", &tickets);
+				match message.pattern {
+					"get_tickets" => {
+						debug!("Getting tickets with filter: {:?}", &filter);
 
-					let response = MQMessage {
-						id: message.id,
-						pattern: "get_tickets_response",
-						data: &tickets,
-					};
+						let cursor = ticket_collection.find(filter, None).await?;
+						let tickets: Vec<Ticket> = cursor.try_collect().await?;
+						debug!("Successfully fetched tickets: {:?}", &tickets);
 
-					let _confirm = ticket_tx
-						.basic_publish(
-							"",
-							TICKET_RESPONSE_QUEUE,
-							BasicPublishOptions::default(),
-							serde_json::to_vec(&response)?,
-							BasicProperties::default(),
-						)
-						.await?
-						.await?;
-				}
-				other => error!(r#"The pattern "{}" is not supported"#, other),
-			};
+						let response = MQMessage {
+							id: message.id,
+							pattern: "get_tickets_response",
+							data: &tickets,
+						};
+
+						let _confirm = tx
+							.basic_publish(
+								"",
+								reply_to,
+								BasicPublishOptions::default(),
+								serde_json::to_vec(&response)?,
+								BasicProperties::default(),
+							)
+							.await?
+							.await?;
+					}
+					other => error!(
+						r#"[Ticket fetcher] The pattern "{}" is not supported"#,
+						other
+					),
+				};
+			}
+		} else {
+			error!("No `reply_to` queue specified");
 		}
 	}
 

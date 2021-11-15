@@ -7,7 +7,7 @@ export enum RmqQueues {
 	ORDER_RESPONSE = 'order_response_queue',
 }
 
-export function rmqConfig(): Record<'ticketRequestQueue' | 'orderRequestQueue', RmqOptions> {
+export function rmqConfig(): Record<string, RmqOptions> {
 	const {
 		RABBITMQ_USERNAME = 'guest',
 		RABBITMQ_PASSWORD = 'guest',
@@ -30,6 +30,23 @@ export function rmqConfig(): Record<'ticketRequestQueue' | 'orderRequestQueue', 
 			options: {
 				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
 				queue: RmqQueues.ORDER_REQUEST,
+				queueOptions: { durable: false, noAck: true },
+				replyQueue: RmqQueues.ORDER_RESPONSE,
+			},
+		},
+		ticketResponseQueue: {
+			transport: Transport.RMQ,
+			options: {
+				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
+				queue: RmqQueues.TICKET_RESPONSE,
+				queueOptions: { durable: false, noAck: true },
+			},
+		},
+		orderResponseQueue: {
+			transport: Transport.RMQ,
+			options: {
+				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
+				queue: RmqQueues.ORDER_RESPONSE,
 				queueOptions: { durable: false, noAck: true },
 				replyQueue: RmqQueues.ORDER_RESPONSE,
 			},
