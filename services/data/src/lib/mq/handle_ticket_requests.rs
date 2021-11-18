@@ -10,6 +10,7 @@ use mongodb::bson::doc;
 use crate::lib::{ErrorType, MQMessage, Ticket};
 
 const TICKET_REQUEST_QUEUE: &str = "ticket_request_queue";
+const TICKET_RESPONSE_QUEUE: &str = "ticket_response_queue";
 
 pub async fn handle_ticket_requests(
 	rmq_conn: &lapin::Connection,
@@ -23,6 +24,12 @@ pub async fn handle_ticket_requests(
 
 	rx.queue_declare(
 		TICKET_REQUEST_QUEUE,
+		QueueDeclareOptions::default(),
+		FieldTable::default(),
+	)
+	.await?;
+	tx.queue_declare(
+		TICKET_RESPONSE_QUEUE,
 		QueueDeclareOptions::default(),
 		FieldTable::default(),
 	)
@@ -83,14 +90,11 @@ pub async fn handle_ticket_requests(
 							.await?
 							.await?;
 					}
-					other => error!(
-						r#"[Ticket fetcher] The pattern "{}" is not supported"#,
-						other
-					),
+					other => error!(r#"The pattern "{}" is not supported"#, other),
 				};
 			}
 		} else {
-			error!("No `reply_to` queue specified");
+			error!("No `reply_to` queue specified: {:?}", &delivery);
 		}
 	}
 

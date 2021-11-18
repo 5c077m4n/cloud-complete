@@ -10,6 +10,7 @@ use mongodb::bson::doc;
 use crate::lib::{ErrorType, MQMessage, Order};
 
 const ORDER_REQUEST_QUEUE: &str = "order_request_queue";
+const ORDER_RESPONSE_QUEUE: &str = "order_response_queue";
 
 pub async fn handle_order_requests(
 	rmq_conn: &lapin::Connection,
@@ -23,6 +24,12 @@ pub async fn handle_order_requests(
 
 	rx.queue_declare(
 		ORDER_REQUEST_QUEUE,
+		QueueDeclareOptions::default(),
+		FieldTable::default(),
+	)
+	.await?;
+	tx.queue_declare(
+		ORDER_RESPONSE_QUEUE,
 		QueueDeclareOptions::default(),
 		FieldTable::default(),
 	)
@@ -83,14 +90,11 @@ pub async fn handle_order_requests(
 							.await?
 							.await?;
 					}
-					other => error!(
-						r#"[Order fetcher] The pattern "{}" is not supported"#,
-						other
-					),
+					other => error!(r#"The pattern "{}" is not supported"#, other),
 				};
 			}
 		} else {
-			error!("No `reply_to` queue specified");
+			error!("No `reply_to` queue specified: {:?}", &delivery);
 		}
 	}
 

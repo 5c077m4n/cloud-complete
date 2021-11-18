@@ -48,10 +48,12 @@ async fn main() -> Result<(), ErrorType> {
 		&rabbitmq_url
 	);
 
-	let (_, _) = tokio::join!(
+	let (ticket_res, order_res) = tokio::join!(
 		handle_ticket_requests(&rmq_conn, &db),
 		handle_order_requests(&rmq_conn, &db)
 	);
+	ticket_res?;
+	order_res?;
 
 	debug!("Bye!");
 	Ok(())
