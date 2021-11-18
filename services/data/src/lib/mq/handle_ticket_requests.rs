@@ -5,7 +5,7 @@ use lapin::{
 	BasicProperties,
 };
 use log::{debug, error};
-use mongodb::bson::doc;
+use mongodb::bson::{doc, Document};
 
 use crate::lib::{ErrorType, MQMessage, Ticket};
 
@@ -57,7 +57,7 @@ pub async fn handle_ticket_requests(
 
 			if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
 				let id_list = &message.data;
-				let filter = if id_list.is_empty() {
+				let filter: Option<Document> = if id_list.is_empty() {
 					None
 				} else if id_list.len() == 1 {
 					Some(doc! { "_id": id_list[0] })

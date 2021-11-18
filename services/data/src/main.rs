@@ -55,6 +55,5 @@ async fn main() -> Result<(), ErrorType> {
 	ticket_res?;
 	order_res?;
 
-	debug!("Bye!");
-	Ok(())
+	unreachable!();
 }
