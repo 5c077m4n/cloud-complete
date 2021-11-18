@@ -6,7 +6,7 @@
 	"private": true,
 	"packageManager": "yarn@3.1.0",
 	"scripts": {
-		"git-hook": "test -d .githooks && chmod 755 .githooks/* && git config core.hooksPath .githooks"
+		"gitinit": "chmod 755 .githooks/* && git config --local include.path ../.gitconfig"
 	},
 	"workspaces": [
 		"services/*"
