@@ -20,7 +20,6 @@ pub async fn handle_order_requests(
 
 	let rx = rmq_conn.create_channel().await?;
 	let tx = rmq_conn.create_channel().await?;
-	debug!("{:?}", rmq_conn.status().state());
 
 	rx.queue_declare(
 		ORDER_REQUEST_QUEUE,
@@ -55,18 +54,18 @@ pub async fn handle_order_requests(
 			)
 			.await?;
 
-			if let Ok(message) = serde_json::from_slice::<MQMessage<Vec<&str>>>(&delivery.data) {
-				let id_list = &message.data;
-				let filter: Option<Document> = if id_list.is_empty() {
-					None
-				} else if id_list.len() == 1 {
-					Some(doc! { "_id": id_list[0] })
-				} else {
-					Some(doc! { "_id": { "$in": id_list } })
-				};
-
-				match message.pattern {
+			if let Ok(message) = serde_json::from_slice::<MQMessage>(&delivery.data) {
+				match message.pattern.as_str() {
 					"get_orders" => {
+						let id_list: Vec<String> = serde_json::from_value(message.data)?;
+						let filter: Option<Document> = if id_list.is_empty() {
+							None
+						} else if id_list.len() == 1 {
+							Some(doc! { "_id": &id_list[0] })
+						} else {
+							Some(doc! { "_id": { "$in": id_list } })
+						};
+
 						debug!("Getting orders with filter: {:?}", &filter);
 
 						let cursor = order_collection.find(filter, None).await?;
@@ -75,7 +74,7 @@ pub async fn handle_order_requests(
 
 						let response = MQMessage {
 							id: message.id,
-							pattern: "get_orders_response",
+							pattern: "get_orders_response".into(),
 							data: &orders,
 						};
 

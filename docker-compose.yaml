@@ -22,7 +22,7 @@ services:
   data:
     build:
       context: services/data
-      dockerfile: ../../docker/rust.Dockerfile
+      dockerfile: docker/rust.Dockerfile
     container_name: data
     environment:
       RABBITMQ_HOST: rabbitmq
