@@ -77,6 +77,7 @@ pub async fn handle_ticket_requests(
 							pattern: "get_tickets_response".into(),
 							data: &tickets,
 						};
+						debug!("{:?}", &response);
 
 						let _confirm = tx
 							.basic_publish(

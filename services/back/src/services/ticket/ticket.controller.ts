@@ -9,7 +9,7 @@ export class TicketController {
 	private readonly logger = new Logger(TicketController.name);
 	constructor(private readonly ticketSerivce: TicketService) {}
 
-	@MessagePattern('get_tickets_response')
+	@MessagePattern({ pattern: 'get_tickets_response' })
 	getTickets(@Payload() data: Ticket[], @Ctx() context: RmqContext) {
 		const channel = context.getChannelRef();
 		const originalMsg = context.getMessage();

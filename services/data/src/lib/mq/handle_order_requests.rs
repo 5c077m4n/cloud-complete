@@ -77,6 +77,7 @@ pub async fn handle_order_requests(
 							pattern: "get_orders_response".into(),
 							data: &orders,
 						};
+						debug!("{:?}", &response);
 
 						let _confirm = tx
 							.basic_publish(
