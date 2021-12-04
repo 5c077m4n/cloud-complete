@@ -1,6 +1,6 @@
 use futures::{StreamExt, TryStreamExt};
 use lapin::{
-	options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions, QueueDeclareOptions},
+	options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions},
 	types::FieldTable,
 	BasicProperties,
 };
@@ -10,7 +10,7 @@ use mongodb::bson::{doc, Document};
 use crate::lib::{ErrorType, MQMessage, Ticket};
 
 const TICKET_REQUEST_QUEUE: &str = "ticket_request_queue";
-const TICKET_RESPONSE_QUEUE: &str = "ticket_response_queue";
+const _TICKET_RESPONSE_QUEUE: &str = "ticket_response_queue";
 
 pub async fn handle_ticket_requests(
 	rmq_conn: &lapin::Connection,
@@ -21,18 +21,6 @@ pub async fn handle_ticket_requests(
 	let rx = rmq_conn.create_channel().await?;
 	let tx = rmq_conn.create_channel().await?;
 
-	rx.queue_declare(
-		TICKET_REQUEST_QUEUE,
-		QueueDeclareOptions::default(),
-		FieldTable::default(),
-	)
-	.await?;
-	tx.queue_declare(
-		TICKET_RESPONSE_QUEUE,
-		QueueDeclareOptions::default(),
-		FieldTable::default(),
-	)
-	.await?;
 	let mut ticket_consumer = rx
 		.basic_consume(
 			TICKET_REQUEST_QUEUE,
@@ -43,16 +31,8 @@ pub async fn handle_ticket_requests(
 		.await?;
 
 	while let Some(Ok((_rx_channel, delivery))) = ticket_consumer.next().await {
-		delivery.ack(BasicAckOptions::default()).await?;
-
 		if let Some(reply_to) = delivery.properties.reply_to() {
 			let reply_to = reply_to.as_str();
-			tx.queue_declare(
-				reply_to,
-				QueueDeclareOptions::default(),
-				FieldTable::default(),
-			)
-			.await?;
 
 			if let Ok(message) = serde_json::from_slice::<MQMessage>(&delivery.data) {
 				match message.pattern.as_str() {
@@ -79,16 +59,24 @@ pub async fn handle_ticket_requests(
 						};
 						debug!("{:?}", &response);
 
-						let _confirm = tx
-							.basic_publish(
-								"",
-								reply_to,
-								BasicPublishOptions::default(),
-								serde_json::to_vec(&response)?,
-								BasicProperties::default(),
-							)
-							.await?
-							.await?;
+						if let Some(correlation_id) = delivery.properties.correlation_id() {
+							let correlation_id = correlation_id.clone();
+
+							let _confirm = tx
+								.basic_publish(
+									"",
+									reply_to,
+									BasicPublishOptions::default(),
+									serde_json::to_vec(&response)?,
+									BasicProperties::default().with_correlation_id(correlation_id),
+								)
+								.await?
+								.await?;
+
+							delivery.ack(BasicAckOptions::default()).await?;
+						} else {
+							error!("There was no correlation id");
+						}
 					}
 					other => error!(r#"The pattern "{}" is not supported"#, other),
 				};

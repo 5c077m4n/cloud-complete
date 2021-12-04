@@ -4,11 +4,14 @@
 	"author": "Roee Shapira",
 	"license": "MIT",
 	"private": true,
-	"packageManager": "yarn@3.1.0",
+	"packageManager": "yarn@3.1.1",
 	"scripts": {
 		"gitinit": "chmod 755 .githooks/* && git config --local include.path ../.gitconfig"
 	},
 	"workspaces": [
 		"services/*"
-	]
+	],
+	"dependencies": {
+		"amqp-connection-manager": "latest"
+	}
 }

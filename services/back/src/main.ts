@@ -7,10 +7,9 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
 	const logger = new Logger('NestApplication');
-
 	const app = await NestFactory.create(AppModule, { logger });
-	const configService = app.get(ConfigService);
 
+	const configService = app.get(ConfigService);
 	app.connectMicroservice<MicroserviceOptions>(configService.get('ticketResponseQueue'));
 	app.connectMicroservice<MicroserviceOptions>(configService.get('orderResponseQueue'));
 

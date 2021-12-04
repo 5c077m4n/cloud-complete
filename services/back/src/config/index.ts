@@ -21,7 +21,8 @@ export function rmqConfig(): Record<string, RmqOptions> {
 			options: {
 				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
 				queue: RmqQueues.TICKET_REQUEST,
-				queueOptions: { durable: false, noAck: true },
+				noAck: false,
+				queueOptions: { durable: false },
 				replyQueue: RmqQueues.TICKET_RESPONSE,
 			},
 		},
@@ -30,7 +31,8 @@ export function rmqConfig(): Record<string, RmqOptions> {
 			options: {
 				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
 				queue: RmqQueues.ORDER_REQUEST,
-				queueOptions: { durable: false, noAck: true },
+				noAck: false,
+				queueOptions: { durable: false },
 				replyQueue: RmqQueues.ORDER_RESPONSE,
 			},
 		},
@@ -39,7 +41,8 @@ export function rmqConfig(): Record<string, RmqOptions> {
 			options: {
 				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
 				queue: RmqQueues.TICKET_RESPONSE,
-				queueOptions: { durable: false, noAck: true },
+				noAck: false,
+				queueOptions: { durable: false },
 			},
 		},
 		orderResponseQueue: {
@@ -47,8 +50,8 @@ export function rmqConfig(): Record<string, RmqOptions> {
 			options: {
 				urls: [`amqp://${RABBITMQ_USERNAME}:${RABBITMQ_PASSWORD}@${RABBITMQ_HOST}:${RABBITMQ_PORT}`],
 				queue: RmqQueues.ORDER_RESPONSE,
-				queueOptions: { durable: false, noAck: true },
-				replyQueue: RmqQueues.ORDER_RESPONSE,
+				noAck: false,
+				queueOptions: { durable: false },
 			},
 		},
 	};
